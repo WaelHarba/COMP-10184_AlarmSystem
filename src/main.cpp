@@ -1,6 +1,8 @@
 // COMP-10184 – Mohawk College
 // Alarm System Project
 //
+// Stages Completed: All stages are completed.
+//
 // This program is meant to act as an alarm system where the LED will start blinking once the sensor detects movement.
 // The LED will keep blinking for 10 seconds once movement is detected.
 // If the button on the breadboard is pressed within those 10 seconds, the LED will stop blinking and the alarm will be disabled until the button is pressed again to renable the alarm.
@@ -34,6 +36,8 @@ int iButtonState;                    // Global variable for the state of the but
 int ledState = LOW;                  // Gobal variable used to manage the state of the LED.
 unsigned long lAlarmStartMillis = 0; // Global variable to hold time in ms when the alarm countdown starts.
 unsigned long lPreviousMillis = 0;   // Global variable that will store last time LED was updated by blinking.
+unsigned long lCurrentMillis;        // Global variable for the time since the application started.
+bool bMotionDetected;                // Global variable for the value of the PIR sensor.
 
 // *************************************************************
 void setup()
@@ -55,29 +59,23 @@ void setup()
 }
 
 // *************************************************************
-// This function is responsible for disabling the alarm by switching the alarm state to ALARM_DISABLED, resetting the countdown timer of the blinking led to 0.
-// It also ensures the LED is off when alarm is disabled.
-void disableAlarm()
+// This function is responsible for getting all the required values for the alarm system functionality and it stores these values
+// in the appropriate global variables.
+void collectInputs()
 {
-  iAlarmState = ALARM_DISABLED;
-  lAlarmStartMillis = 0;
-  digitalWrite(LED_BUILTIN, true);
+  lCurrentMillis = millis();              // Store the value of the time since the application started in lCurrentMillis
+  bMotionDetected = digitalRead(PIN_PIR); // Read and store the value of the PIR sensor whether a movement was detected or not in bMotionDetected
+  iButtonState = digitalRead(PIN_BUTTON); // Read and store the value of the button whether it was pressed or not in iButtonState
 }
 
 // *************************************************************
-// This function is responsible for enabling the alarm by switching the alarm state to ALARM_ENABLE
-void enableAlarm()
+// This function is responsible for enabling or disabling the alarm when the pushbutton is pressed.
+// It disables the alarm when it's in a countdown state by doing the following 3 things:
+// switching the state of the iAlarmState variable to ALARM_DISABLED, Resetting countdown timer by setting lAlarmStartMillis to 0, and turning off the LED.
+// It enables the alarm only by switching the iAlarmState variable to ALARM_ENABLE.
+//
+void enableOrDisableAlarm()
 {
-  iAlarmState = ALARM_ENABLE;
-}
-
-// *************************************************************
-void loop()
-{
-  unsigned long lCurrentMillis = millis();     // current time since the application started
-  bool bMotionDetected = digitalRead(PIN_PIR); // variable that holds the value of the PIR sensor
-  iButtonState = digitalRead(PIN_BUTTON);      // store the value of the button whether it was pressed or not in iButtonState
-
   // Button was pressed
   if (iButtonState == 0)
   {
@@ -86,15 +84,36 @@ void loop()
     // If alarm is currently in countdown state, we disable it
     if (iAlarmState == ALARM_COUNTDOWN)
     {
-      disableAlarm(); // Disable alarm
+      iAlarmState = ALARM_DISABLED;    // Switch alarm state to disabled
+      lAlarmStartMillis = 0;           // Reset time for when countdown timer started to 0
+      digitalWrite(LED_BUILTIN, true); // Turn off the LED since the alarm was disabled
     }
     // if alarm is disabled, we enable it
     else if (iAlarmState == ALARM_DISABLED)
     {
-      enableAlarm(); // Enable alarm
+      iAlarmState = ALARM_ENABLE; // Switch the alarm state to enabled
     }
   }
+}
 
+// *************************************************************
+// This function will help in the blinking functionality. It turns the LED on if it was off and vice versa.
+// It also stores the time of the blink to help knowing when to blink next.
+void blink()
+{
+  lPreviousMillis = lCurrentMillis; // Save the time of this blink into the lPreviousMillis variable
+
+  ledState = (ledState == LOW) ? HIGH : LOW; // Toggle LED state variable on if it was off and vice versa
+
+  digitalWrite(LED_BUILTIN, ledState); // Set the LED light based on the ledState variable
+}
+
+// *************************************************************
+// This function is responsible for starting the alarm if the alarm is enabled and motion is detected.
+// If the alarm started, the LED starts blinking 4 times per second for 10 seconds.
+// If 10 seconds pass and the user doesn't disable the alarm, the alarm will be activated by keeping LED on always unless the device is restarted.
+void checkAlarmState()
+{
   // Check if motion was detected and the alarm is enabled
   if (bMotionDetected && iAlarmState == ALARM_ENABLE)
   {
@@ -110,13 +129,7 @@ void loop()
       // Check if it is time for the light to blink
       if (lCurrentMillis - lPreviousMillis >= BLINK_INTERVAL)
       {
-        // Save the time of this blink into the lPreviousMillis variable
-        lPreviousMillis = lCurrentMillis;
-
-        ledState = (ledState == LOW) ? HIGH : LOW; // Toggle LED state variable on if it was off and vise verca
-
-        // Set the LED light based on the ledState variable
-        digitalWrite(LED_BUILTIN, ledState);
+        blink(); // blink the LED
       }
     }
     else
@@ -125,4 +138,17 @@ void loop()
       digitalWrite(LED_BUILTIN, false);
     }
   }
+}
+
+// *************************************************************
+void loop()
+{
+  // Get all the inputs we need for the alarm functionality (motion detector value, pushbutton state value, and time since alarm was enabled)
+  collectInputs();
+
+  // Checking if button was pressed, and enabling/disabling if button was pressed depending on alarm state
+  enableOrDisableAlarm();
+
+  // check and switch alarm state if needed
+  checkAlarmState();
 }
