@@ -134,6 +134,7 @@ void checkAlarmState()
     }
     else
     {
+      iAlarmState = ALARM_ACTIVE; // Alarm is active because it was not disabled on time. It will stay active unless device is restarted.
       // 10 seconds passed already and the alarm was not disabled, keep LED on unless device was restarted
       digitalWrite(LED_BUILTIN, false);
     }
